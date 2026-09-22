@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env*.local
+*.log
+test_*
+sse_response.txt
+.TXT
+KNOWLEDGE BASE
+data.db
+.git
+.gitignore
