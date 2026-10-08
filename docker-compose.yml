@@ -1,12 +1,10 @@
-version: "3.8"
-
 services:
   mcp-server:
     build: .
     container_name: mcp-ticket-server
     restart: unless-stopped
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     env_file:
       - .env
     environment:
@@ -21,6 +19,8 @@ services:
   ngrok:
     image: ngrok/ngrok:latest
     container_name: mcp-ngrok
+    profiles:
+      - ngrok
     restart: unless-stopped
     depends_on:
       - mcp-server

@@ -172,19 +172,33 @@ L'endpoint messaggi: `https://your-domain.com/messages?sessionId=<session_id>`
 
 ## 🐳 Docker
 
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist ./dist
-EXPOSE 3000
-CMD ["node", "dist/server.js"]
-```
+Build multi-stage (`Dockerfile`): `deps` → `builder` (tsc) → `runner` (alpine + tini),
+avvia `node dist/server.js` sulla porta 3000. Le variabili d'ambiente arrivano da `.env`
+(incluso nel `.gitignore`, mai nell'immagine grazie a `.dockerignore`).
+
+### Avvio base (server esposto su localhost:3000)
 
 ```bash
-docker build -t mcp-ticket-server .
-docker run -p 3000:3000 --env-file .env mcp-ticket-server
+docker compose up --build -d
+curl http://localhost:3000/health
+```
+
+### Con ngrok (opzionale, per esporre il server pubblicamente)
+
+Richiede `NGROK_AUTHTOKEN` nel `.env`:
+
+```bash
+docker compose --profile ngrok up --build -d
+```
+
+La dashboard di ngrok è disponibile su `http://localhost:4040`.
+
+### Comandi utili
+
+```bash
+docker compose logs -f mcp-server   # log
+docker compose ps                    # stato (Health: healthy/degraded)
+docker compose down                  # stop e rimozione container
 ```
 
 ## 🧪 Testing
