@@ -6,3 +6,5 @@ dist/
 data.db
 sse_response.txt
 .TXT
+
+logs/
