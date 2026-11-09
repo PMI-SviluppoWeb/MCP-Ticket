@@ -53,6 +53,12 @@ export const CreaTicketAssistenzaInputSchema = z.object({
   priorita: z.enum(['ALTA', 'MEDIA', 'BASSA'], {
     errorMap: () => ({ message: 'Priorità deve essere ALTA, MEDIA o BASSA' }),
   }),
+  // Contatti del cliente: opzionali perche' possono arrivare gia' nascosti
+  // dentro `contatto` (testo libero), ma se il cliente li ha detti vanno qui.
+  // La validazione vera non e' qui: un recapito dettato male non deve
+  // bloccare la creazione del ticket, viene scartato o estratto dal testo.
+  email: z.string().trim().max(255, 'Email troppo lunga').optional(),
+  telefono: z.string().trim().max(50, 'Telefono troppo lungo').optional(),
 });
 
 export const VerificaStatoTicketInputSchema = z.object({
@@ -156,7 +162,9 @@ export const MCP_TOOLS = {
       type: 'object',
       properties: {
         cliente: { type: 'string', description: 'Nome del cliente' },
-        contatto: { type: 'string', description: 'Contatto del cliente (email/telefono)' },
+        contatto: { type: 'string', description: 'Nome del referente/contatto del cliente (senza email ne telefono: quelli vanno nei campi dedicati)' },
+        email: { type: 'string', description: 'Indirizzo email del cliente. OBBLIGATORIO se il cliente lo ha detto o scritto: usare il campo dedicato, NON metterlo in contatto.' },
+        telefono: { type: 'string', description: 'Numero di telefono del cliente (con spazi o prefisso +39). OBBLIGATORIO se il cliente lo ha detto: usare il campo dedicato, NON metterlo in contatto.' },
         modulo_software: { type: 'string', description: 'Modulo software interessato' },
         sommario_problema: { type: 'string', description: 'Breve sommario del problema' },
         descrizione_dettagliata: { type: 'string', description: 'Descrizione dettagliata del problema' },

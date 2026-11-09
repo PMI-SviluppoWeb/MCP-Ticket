@@ -16,7 +16,7 @@ Model Context Protocol (MCP) Server per la gestione ticket di assistenza tecnica
 | Tool | Descrizione |
 |------|-------------|
 | `ricerca_knowledge_base` | Cerca soluzioni tecniche (vector + full-text fallback) |
-| `crea_ticket_assistenza` | Crea nuovo ticket con priorità ALTA/MEDIA/BASSA |
+| `crea_ticket_assistenza` | Crea nuovo ticket con priorità ALTA/MEDIA/BASSA, email e telefono del cliente |
 | `verifica_stato_ticket` | Controlla stato e soluzione ticket esistente |
 | `identifica_cliente_da_telefono` | Riconosce cliente da numero telefonico |
 
@@ -145,7 +145,9 @@ L'endpoint messaggi: `https://your-domain.com/messages?sessionId=<session_id>`
   "name": "crea_ticket_assistenza",
   "arguments": {
     "cliente": "Mario Rossi",
-    "contatto": "mario@rossi.it",
+    "contatto": "Mario Rossi",
+    "email": "mario@rossi.it",
+    "telefono": "+39 02 1234567",
     "modulo_software": "Fatturazione",
     "sommario_problema": "Errore calcolo IVA",
     "descrizione_dettagliata": "Il sistema applica IVA 22% invece di 10% per prodotti editoriali",
@@ -153,6 +155,11 @@ L'endpoint messaggi: `https://your-domain.com/messages?sessionId=<session_id>`
   }
 }
 ```
+
+`email` e `telefono` sono opzionali ma vanno SEMPRE compilati quando il cliente
+li comunica: sono i recapiti con cui la dashboard invia le risposte. Se non
+vengono passati, il server li estrae automaticamente dal testo di `contatto`
+(ormai destinato al solo nome del referente).
 
 ### verifica_stato_ticket
 ```json
