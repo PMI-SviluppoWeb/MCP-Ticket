@@ -19,7 +19,7 @@ module.exports = {
       error_file: 'logs/mcp-ticket-server-error.log',
       env: {
         NODE_ENV: 'production',
-        PORT: 3001,
+        PORT: 3000,
       },
     },
   ],
