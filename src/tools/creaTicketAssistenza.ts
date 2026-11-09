@@ -1,5 +1,5 @@
 import { query, generateId, nowUnix } from '../db/pool';
-import { EnvConfig, CreaTicketAssistenzaOutput, ValidationError, MCPError, CreaTicketAssistenzaInputSchema } from '../types';
+import { EnvConfig, ToolContext, CreaTicketAssistenzaOutput, ValidationError, MCPError, CreaTicketAssistenzaInputSchema } from '../types';
 
 const RE_EMAIL = /[\w.+-]+@[\w.-]+\.\w{2,}/;
 const RE_TELEFONO = /(?:\+39|0039)\s*[\d\s\-]{8,15}|(?<!\d)[\d\s\-]{8,15}(?!\d)/;
@@ -23,13 +23,14 @@ function normalizzaTelefono(valore: string): string {
 }
 
 // Toglie email/numero dal testo libero del contatto: resta il nome del referente.
-function pulisciContatto(contatto: string, email: string | null, telefono: string | null): string {
-  let nome = contatto;
-  if (email) nome = nome.replace(email, " ");
-  if (telefono) nome = nome.replace(telefono, " ");
-  nome = nome
+// La rimozione avviene via regex (e non sul valore normalizzato) per eliminare
+// anche la forma grezza del numero, con spazi e prefisso.
+function pulisciContatto(contatto: string): string {
+  const nome = contatto
+    .replace(RE_EMAIL, " ")
+    .replace(RE_TELEFONO, " ")
     .replace(/[<>]/g, "")
-    .replace(/[-–—,;|/\\]+/g, " ")
+    .replace(/[-–—,;|/\\+]+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
   return nome || "Non fornito";
@@ -37,7 +38,8 @@ function pulisciContatto(contatto: string, email: string | null, telefono: strin
 
 export async function creaTicketAssistenza(
   input: unknown,
-  config: EnvConfig
+  config: EnvConfig,
+  ctx?: ToolContext
 ): Promise<CreaTicketAssistenzaOutput> {
   // Validazione input
   const parseResult = CreaTicketAssistenzaInputSchema.safeParse(input);
@@ -68,7 +70,14 @@ export async function creaTicketAssistenza(
   // caso viene scartato invece di restituire un relitto inutilizzabile.
   if (telefono && telefono.replace(/\D/g, '').length < 6) telefono = null;
 
-  const contattoPulito = pulisciContatto(contatto, email, telefono);
+  // Ultimo fallback: senza recapito valido dal LLM si usa il numero del
+  // chiamante che Retell passa nella query string (?caller={{user_number}}).
+  if (!telefono && ctx?.callerNumber) {
+    const chiamante = normalizzaTelefono(ctx.callerNumber);
+    if (chiamante.replace(/\D/g, '').length >= 6) telefono = chiamante;
+  }
+
+  const contattoPulito = pulisciContatto(contatto);
 
   try {
     const ticketId = generateId();

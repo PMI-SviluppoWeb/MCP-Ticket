@@ -259,6 +259,14 @@ export class NotFoundError extends MCPError {
 // Environment Configuration Type
 // ============================================
 
+// Contesto della richiesta MCP corrente, arrivato da Retell via query string.
+// callerNumber e' il numero del chiamante ({{user_number}}): usato come
+// ultimo fallback quando l'LLM non passa un telefono valido al tool.
+export interface ToolContext {
+  callerNumber?: string | null;
+  callId?: string | null;
+}
+
 export interface EnvConfig {
   PORT: number;
   NODE_ENV: string;

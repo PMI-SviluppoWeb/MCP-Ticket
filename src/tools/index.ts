@@ -4,13 +4,14 @@ export { verificaStatoTicket } from './verificaStatoTicket';
 export { identificaClienteDaTelefono } from './identificaClienteDaTelefono';
 export { ricercaDocumentazioneLive } from './ricercaDocumentazioneLive';
 
-import { MCP_TOOLS } from '../types';
+import { MCP_TOOLS, EnvConfig, ToolContext } from '../types';
 import { ricercaKnowledgeBase } from './ricercaKnowledgeBase';
 import { creaTicketAssistenza } from './creaTicketAssistenza';
 import { verificaStatoTicket } from './verificaStatoTicket';
 import { identificaClienteDaTelefono } from './identificaClienteDaTelefono';
 import { ricercaDocumentazioneLive } from './ricercaDocumentazioneLive';
-import { EnvConfig } from '../types';
+
+type ToolHandler = (input: unknown, config: EnvConfig, ctx?: ToolContext) => Promise<unknown>;
 
 export const TOOL_HANDLERS = {
   [MCP_TOOLS.ricerca_knowledge_base.name]: ricercaKnowledgeBase,
@@ -25,11 +26,12 @@ export type ToolName = keyof typeof TOOL_HANDLERS;
 export async function executeTool(
   name: ToolName,
   input: unknown,
-  config: EnvConfig
+  config: EnvConfig,
+  ctx?: ToolContext
 ) {
-  const handler = TOOL_HANDLERS[name];
+  const handler = TOOL_HANDLERS[name] as ToolHandler | undefined;
   if (!handler) {
     throw new Error(`Tool non trovato: ${name}`);
   }
-  return handler(input, config);
+  return handler(input, config, ctx);
 }

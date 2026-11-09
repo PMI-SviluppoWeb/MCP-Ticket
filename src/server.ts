@@ -16,7 +16,7 @@ import { dirname, join } from 'path';
 // Carica variabili d'ambiente PRIMA di tutto
 dotenv.config({ path: join(process.cwd(), '.env') });
 
-import { EnvConfig, MCP_TOOLS, MCPError } from './types';
+import { EnvConfig, MCP_TOOLS, MCPError, ToolContext } from './types';
 import { getClient, closeClient, healthCheck } from './db/pool';
 import { createErrorHandler } from './auth/middleware';
 import { TOOL_HANDLERS, ToolName, executeTool } from './tools';
@@ -76,7 +76,9 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // Factory: crea un MCP Server con gli handler registrati (uno per connessione)
-function createMcpServer(): Server {
+// getContext espone il contesto della chiamata corrente (numero del chiamante)
+// passato da Retell nella query string della connessione.
+function createMcpServer(getContext?: () => ToolContext | undefined): Server {
   const mcpServer = new Server(
     {
       name: 'mcp-ticket-server',
@@ -110,12 +112,19 @@ function createMcpServer(): Server {
 
   mcpServer.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
     const { name, arguments: args } = request.params;
+    const ctx = getContext?.();
 
-    console.log(`[MCP] Tool chiamato: ${name}`, args);
+    // call/caller servono per verificare che Retell riapra la connessione a
+    // ogni chiamata: se call_id resta identico tra due chiamate diverse,
+    // il numero del chiamante nella query string non e' affidabile.
+    console.log(
+      `[MCP] Tool chiamato: ${name} [call=${ctx?.callId ?? 'n/d'} caller=${ctx?.callerNumber ?? 'n/d'}]`,
+      args
+    );
 
     try {
       const toolName = name as ToolName;
-      const result = await executeTool(toolName, args, config);
+      const result = await executeTool(toolName, args, config, ctx);
 
       return {
         content: [
@@ -153,11 +162,38 @@ function createMcpServer(): Server {
 // SSE Transport
 const transports: Map<string, SSEServerTransport> = new Map();
 
+// Retell passa il numero del chiamante ({{user_number}}) e l'id della chiamata
+// nella query string della connessione MCP. Un valore che non somiglia a un
+// numero viene ignorato: meglio nessun recapito che un recapito sbagliato.
+function parseCallerQuery(query: Request['query']): ToolContext {
+  const context: ToolContext = {};
+
+  const raw = typeof query.caller === 'string' ? query.caller.trim() : '';
+  if (raw) {
+    const normalizzato = raw.replace(/[^\d+]/g, '');
+    const cifre = normalizzato.replace(/\D/g, '');
+    if (cifre.length >= 6 && cifre.length <= 15) {
+      context.callerNumber = normalizzato.startsWith('+')
+        ? `+${normalizzato.replace(/\+/g, '')}`
+        : normalizzato;
+      console.log(`[MCP] Numero chiamante ricevuto: ${context.callerNumber}`);
+    } else {
+      console.warn(`[MCP] Query param caller non valido, ignorato: "${raw}"`);
+    }
+  }
+
+  const callId = typeof query.call === 'string' ? query.call.trim() : '';
+  if (callId) context.callId = callId;
+
+  return context;
+}
+
 app.get('/sse', async (req: Request, res: Response) => {
   console.log('[SSE] Nuova connessione SSE');
 
   const transport = new SSEServerTransport('/messages', res);
   const sessionId = transport.sessionId;
+  const context = parseCallerQuery(req.query);
 
   transports.set(sessionId, transport);
 
@@ -168,7 +204,7 @@ app.get('/sse', async (req: Request, res: Response) => {
   });
 
   try {
-    await createMcpServer().connect(transport);
+    await createMcpServer(() => context).connect(transport);
     console.log(`[SSE] mcpServer.connect completato per sessione: ${sessionId}`);
   } catch (e) {
     console.error(`[SSE] Errore mcpServer.connect:`, e);
@@ -206,6 +242,9 @@ app.post('/messages', async (req: Request, res: Response) => {
 // Endpoint /mcp: gestisce POST/GET/DELETE secondo spec MCP Streamable HTTP
 // ============================================
 const streamableTransports: Map<string, StreamableHTTPServerTransport> = new Map();
+// Contesto per sessione (numero chiamante / id chiamata): stesso oggetto
+// referenziato dal getter passato a createMcpServer, aggiornato a ogni POST.
+const sessionContexts: Map<string, ToolContext> = new Map();
 
 async function handleMcpRequest(req: Request, res: Response) {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -222,11 +261,16 @@ async function handleMcpRequest(req: Request, res: Response) {
       return;
     }
 
+    const context = parseCallerQuery(req.query);
+
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
-        console.log(`[MCP HTTP] Sessione inizializzata: ${sid}`);
+        console.log(
+          `[MCP HTTP] Sessione inizializzata: ${sid} [call=${context.callId ?? 'n/d'} caller=${context.callerNumber ?? 'n/d'}]`
+        );
         streamableTransports.set(sid, transport!);
+        sessionContexts.set(sid, context);
       },
     });
 
@@ -235,10 +279,16 @@ async function handleMcpRequest(req: Request, res: Response) {
       if (sid) {
         console.log(`[MCP HTTP] Sessione chiusa: ${sid}`);
         streamableTransports.delete(sid);
+        sessionContexts.delete(sid);
       }
     };
 
-    await createMcpServer().connect(transport);
+    await createMcpServer(() => context).connect(transport);
+  } else if (sessionId) {
+    // Retell riappende la query string a ogni richiesta della sessione:
+    // si aggiorna il contesto (se la query manca, resta il valore precedente).
+    const context = sessionContexts.get(sessionId);
+    if (context) Object.assign(context, parseCallerQuery(req.query));
   }
 
   try {
