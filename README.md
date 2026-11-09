@@ -156,10 +156,12 @@ L'endpoint messaggi: `https://your-domain.com/messages?sessionId=<session_id>`
 }
 ```
 
-`email` e `telefono` sono opzionali ma vanno SEMPRE compilati quando il cliente
-li comunica: sono i recapiti con cui la dashboard invia le risposte. Se non
-vengono passati, il server li estrae automaticamente dal testo di `contatto`
-(ormai destinato al solo nome del referente).
+`telefono` nel ticket è SEMPRE il numero da cui il cliente ha chiamato:
+Retell lo passa al server nella query string della connessione MCP
+(`caller={{user_number}}`), quindi viene salvato anche se l'LLM non lo compila
+o se il cliente detta un recapito diverso. `email` è opzionale: va compilata
+quando il cliente la comunica, altrimenti il server la estrae dal testo di
+`contatto` (destinato al solo nome del referente).
 
 ### verifica_stato_ticket
 ```json

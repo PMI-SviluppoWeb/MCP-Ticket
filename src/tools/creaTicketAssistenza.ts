@@ -52,29 +52,36 @@ export async function creaTicketAssistenza(
     email: emailInput, telefono: telefonoInput,
   } = parseResult.data;
 
-  // I contatti arrivano in tre modi possibili: campi dedicati, dentro `contatto`
+  // I contatti arrivano in piu' modi: campi dedicati, dentro `contatto`
   // (l'agente vocale spesso mette tutto nel testo libero) o, per l'email,
   // dentro la descrizione. Un recapito dettato male viene scartato e si
   // prova l'estrazione dal testo: la creazione non deve fallire per una mail.
   const emailEsplicita = (emailInput ?? '').trim();
-  const telefonoEsplicito = (telefonoInput ?? '').trim();
 
   let email = emailEsplicita ? estraiEmail(emailEsplicita) : null;
   if (!email) email = estraiEmail(contatto) ?? estraiEmail(descrizione_dettagliata);
 
-  let telefono = telefonoEsplicito ? estraiTelefono(telefonoEsplicito) : null;
-  if (!telefono) telefono = estraiTelefono(contatto);
-  if (telefono) telefono = normalizzaTelefono(telefono);
+  // REGOLA: il recapito telefonico del ticket e' sempre il numero da cui il
+  // cliente ha chiamato, passato da Retell nella query string
+  // (?caller={{user_number}}). Solo se quel numero non arriva si ricade sui
+  // numeri presenti nei campi del tool o nel testo libero.
+  let telefono: string | null = null;
 
-  // Il numero puo' non avere 8 cifre utili dopo la normalizzazione: in tal
-  // caso viene scartato invece di restituire un relitto inutilizzabile.
-  if (telefono && telefono.replace(/\D/g, '').length < 6) telefono = null;
-
-  // Ultimo fallback: senza recapito valido dal LLM si usa il numero del
-  // chiamante che Retell passa nella query string (?caller={{user_number}}).
-  if (!telefono && ctx?.callerNumber) {
+  if (ctx?.callerNumber) {
     const chiamante = normalizzaTelefono(ctx.callerNumber);
     if (chiamante.replace(/\D/g, '').length >= 6) telefono = chiamante;
+  }
+
+  if (!telefono) {
+    const telefonoEsplicito = (telefonoInput ?? '').trim();
+
+    telefono = telefonoEsplicito ? estraiTelefono(telefonoEsplicito) : null;
+    if (!telefono) telefono = estraiTelefono(contatto);
+    if (telefono) telefono = normalizzaTelefono(telefono);
+
+    // Il numero puo' non avere cifre utili dopo la normalizzazione: in tal
+    // caso viene scartato invece di restituire un relitto inutilizzabile.
+    if (telefono && telefono.replace(/\D/g, '').length < 6) telefono = null;
   }
 
   const contattoPulito = pulisciContatto(contatto);

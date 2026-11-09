@@ -164,7 +164,7 @@ export const MCP_TOOLS = {
         cliente: { type: 'string', description: 'Nome del cliente' },
         contatto: { type: 'string', description: 'Nome del referente/contatto del cliente (senza email ne telefono: quelli vanno nei campi dedicati)' },
         email: { type: 'string', description: 'Indirizzo email del cliente. OBBLIGATORIO se il cliente lo ha detto o scritto: usare il campo dedicato, NON metterlo in contatto.' },
-        telefono: { type: 'string', description: 'Numero di telefono del cliente (con spazi o prefisso +39). OBBLIGATORIO se il cliente lo ha detto: usare il campo dedicato, NON metterlo in contatto.' },
+        telefono: { type: 'string', description: 'Numero di telefono del cliente (con spazi o prefisso +39). OBBLIGATORIO: se il cliente non ne detta uno, passare il numero da cui sta chiamando. NON metterlo in contatto.' },
         modulo_software: { type: 'string', description: 'Modulo software interessato' },
         sommario_problema: { type: 'string', description: 'Breve sommario del problema' },
         descrizione_dettagliata: { type: 'string', description: 'Descrizione dettagliata del problema' },
@@ -260,8 +260,8 @@ export class NotFoundError extends MCPError {
 // ============================================
 
 // Contesto della richiesta MCP corrente, arrivato da Retell via query string.
-// callerNumber e' il numero del chiamante ({{user_number}}): usato come
-// ultimo fallback quando l'LLM non passa un telefono valido al tool.
+// callerNumber e' il numero del chiamante ({{user_number}}): e' il recapito
+// telefonico che finisce nel ticket ogni volta che e' disponibile.
 export interface ToolContext {
   callerNumber?: string | null;
   callId?: string | null;
