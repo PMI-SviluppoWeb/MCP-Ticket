@@ -19,8 +19,10 @@ jobs:
       - name: Ripristina .env dai secret
         run: cp /opt/secrets/mcp-ticket.env .env
 
+      # --profile ngrok: il tunnel deve restare sempre su e' il canale
+      # con cui l'agente AI delle chiamate raggiunge il server MCP
       - name: Build e avvio
-        run: docker compose up -d --build --wait --wait-timeout 120
+        run: docker compose --profile ngrok up -d --build --wait --wait-timeout 120
 
       - name: Stato servizi
-        run: docker compose ps
+        run: docker compose --profile ngrok ps
