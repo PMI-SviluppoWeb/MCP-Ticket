@@ -1,46 +1,26 @@
-name: Build & Push MCP Docker Image
+name: Deploy MCP Ticket su container Proxmox
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
     branches: [main]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 30
     steps:
+      # clean: false preserva .env e eventuali dati gitignored tra un deploy e l'altro
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          clean: false
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=
-            type=ref,event=branch
+      - name: Ripristina .env dai secret
+        run: cp /opt/secrets/mcp-ticket.env .env
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Build e avvio
+        run: docker compose up -d --build --wait --wait-timeout 120
+
+      - name: Stato servizi
+        run: docker compose ps
